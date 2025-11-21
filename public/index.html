@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ChatBox Modern</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="shortcut icon" href="assets/Icon.svg" type="image/x-icon">
+    <style>
+        /* --- MODERN DARK THEME VARIABLES --- */
+        :root {
+            --bg-color: #050505;
+            --panel-bg: rgba(20, 20, 25, 0.6);
+            --panel-border: 1px solid rgba(255, 255, 255, 0.08);
+            --accent-color: #00f2ff;
+            --accent-glow: 0 0 10px rgba(0, 242, 255, 0.4);
+            --danger-color: #ff2a6d;
+            --text-main: #ffffff;
+            --text-muted: #8b9bb4;
+            --glass-blur: blur(16px);
+            --radius: 16px;
+            --gap: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(circle at 15% 50%, rgba(0, 81, 255, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.1), transparent 25%);
+            height: 100dvh;
+            /* Dynamic Viewport Height for Mobile */
+            overflow: hidden;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- LAYOUT --- */
+        #app-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            padding: var(--gap);
+            gap: var(--gap);
+            visibility: hidden;
+            position: relative;
+        }
+
+        /* --- PANELS --- */
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: var(--panel-border);
+            border-radius: var(--radius);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        #chat-area {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+        }
+
+        /* --- HEADER --- */
+        .app-header {
+            height: 64px;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: var(--panel-border);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .header-title {
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: var(--text-main);
+        }
+
+        .header-subtitle {
+            font-size: 0.8em;
+            color: var(--text-muted);
+        }
+
+        /* --- SCROLL & LISTS --- */
+        .scroll-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .list-item {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .list-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .list-item.active {
+            background: rgba(0, 242, 255, 0.1);
+            border-color: rgba(0, 242, 255, 0.3);
+            color: var(--accent-color);
+            box-shadow: inset 0 0 15px rgba(0, 242, 255, 0.05);
+        }
+
+        /* --- MESSAGES --- */
+        .message-row {
+            display: flex;
+            gap: 15px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .message-row:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .message-row.pinned {
+            border-left: 3px solid #ffd700;
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.05), transparent);
+        }
+
+        .avatar-gen {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #fff;
+            background: #222;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+        }
+
+        .msg-meta {
+            margin-bottom: 4px;
+            display: flex;
+            gap: 10px;
+            align-items: baseline;
+        }
+
+        .username {
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .timestamp {
+            font-size: 0.75em;
+            color: var(--text-muted);
+        }
+
+        .msg-text {
+            line-height: 1.5;
+            color: #d1d5db;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Message Actions (Floating) */
+        .msg-actions {
+            position: absolute;
+            top: -12px;
+            right: 15px;
+            background: #1a1a20;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 4px;
+            display: none;
+            gap: 2px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .message-row:hover .msg-actions {
+            display: flex;
+            animation: fadeIn 0.2s;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: 0.2s;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        /* --- INPUT AREA --- */
+        #input-area {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: var(--panel-border);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            /* Ensure it stays at bottom on mobile */
+            flex-shrink: 0;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        textarea {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 15px;
+            color: #fff;
+            resize: none;
+            height: 48px;
+            /* Fixed height for single line look */
+            outline: none;
+            font-family: inherit;
+            transition: 0.2s;
+        }
+
+        textarea:focus {
+            border-color: var(--accent-color);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* --- BUTTONS --- */
+        .btn {
+            border: none;
+            outline: none;
+            background: var(--text-main);
+            color: #000;
+            font-weight: 700;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-glow {
+            background: var(--accent-color);
+            box-shadow: var(--accent-glow);
+            color: #000;
+        }
+
+        .btn-glow:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.6);
+        }
+
+        .btn-icon {
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            border-radius: 10px;
+            font-size: 1.2em;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: #fff;
+        }
+
+        /* --- TOAST NOTIFICATIONS --- */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(20, 20, 25, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 20px;
+            border-radius: 12px;
+            color: #fff;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            min-width: 280px;
+            animation: slideIn 0.3s ease forwards;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .toast.success {
+            border-left: 4px solid #00ff88;
+        }
+
+        .toast.error {
+            border-left: 4px solid #ff2a6d;
+        }
+
+        .toast.info {
+            border-left: 4px solid #00f2ff;
+        }
+
+        /* --- AUTH SCREEN --- */
+        #auth-screen {
+            position: fixed;
+            inset: 0;
+            background: #050505;
+            background-image: radial-gradient(circle at 50% 50%, rgba(0, 242, 255, 0.1), transparent 50%);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 380px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+        }
+
+        .auth-inp {
+            width: 100%;
+            padding: 16px;
+            margin: 8px 0;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #fff;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .auth-inp:focus {
+            border-color: var(--accent-color);
+        }
+
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 3000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background: #141419;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 90%;
+            max-width: 450px;
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
+            animation: zoomIn 0.2s ease;
+        }
+
+        .modal h3 {
+            margin: 0;
+            color: #fff;
+        }
+
+        /* --- RESPONSIVE MOBILE --- */
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.4em;
+        }
+
+        @media (max-width: 768px) {
+            #app-container {
+                padding: 0;
+                gap: 0;
+            }
+
+            .panel {
+                border-radius: 0;
+                border: none;
+                background: #0a0e17;
+            }
+
+            /* Sidebars off-canvas */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                width: 85%;
+                max-width: 320px;
+                z-index: 200;
+                background: #111;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            #sidebar-left.active {
+                transform: translateX(0);
+            }
+
+            #sidebar-right {
+                right: 0;
+                transform: translateX(100%);
+                left: auto;
+                border-left: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            #sidebar-right.active {
+                transform: translateX(0);
+            }
+
+            .mobile-toggle {
+                display: block;
+            }
+
+            /* Fix input area hiding on mobile */
+            #input-area {
+                padding: 12px;
+                background: #141419;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            /* Overlay */
+            #mobile-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.6);
+                z-index: 150;
+                display: none;
+                backdrop-filter: blur(2px);
+            }
+
+            #mobile-overlay.active {
+                display: block;
+            }
+        }
+
+        /* --- UTILS --- */
+        .slide-panel {
+            position: absolute;
+            inset: 0;
+            background: #141419;
+            z-index: 50;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .slide-panel.active {
+            transform: translateX(0);
+        }
+
+        #ctx-msg-menu {
+            position: fixed;
+            background: #1a1a20;
+            /* Panel rengi */
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 5px;
+            border-radius: 12px;
+            z-index: 4000;
+            display: none;
+            min-width: 160px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        #emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            font-size: 1.4em;
+        }
+
+        .emoji-cell {
+            padding: 8px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .emoji-cell:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Context Menu */
+        #ctx-menu {
+            position: fixed;
+            background: #1a1a20;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 5px;
+            border-radius: 8px;
+            z-index: 4000;
+            display: none;
+            min-width: 160px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .ctx-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            color: #ccc;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .ctx-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes zoomIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen">
+        <div class="auth-card">
+            <img src="assets/text-logo.svg">
+            <p style="color:var(--text-muted); margin-bottom: 30px;">Beta Test. Version: 1.0</p>
+            <input type="text" id="login-user" class="auth-inp" placeholder="User Name">
+            <input type="password" id="login-pass" class="auth-inp" placeholder="Password">
+            <button class="btn btn-glow" style="width:100%; margin-top: 20px; padding: 15px;"
+                onclick="login()">Login</button>
+            <button class="btn"
+                style="width:100%; margin-top: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #fff;"
+                onclick="register()">Create User</button>
+            <p style="color:var(--text-muted); margin-bottom: 30px;">Developed by Singular Programmer.</p>
+        </div>
+    </div>
+
+    <!-- MOBILE OVERLAY -->
+    <div id="mobile-overlay" onclick="closeSidebars()"></div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container"></div>
+
+    <!-- MAIN APP -->
+    <div id="app-container">
+
+        <!-- LEFT SIDEBAR (Kanallar) -->
+        <div class="panel sidebar" id="sidebar-left">
+            <div class="app-header">
+                <span class="header-title">Channels</span>
+                <button id="btn-add-channel" class="btn-icon" style="display:none;"
+                    onclick="openChannelModal(null, 'create')">+</button>
+            </div>
+            <div class="scroll-content" id="channels-list"></div>
+            <!-- User Profile Footer -->
+            <div style="padding: 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2);">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom: 15px;">
+                    <div id="my-avatar-el" class="avatar-gen">?</div>
+                    <div style="overflow:hidden;">
+                        <div id="my-username" style="font-weight:bold; white-space:nowrap;">...</div>
+                        <div id="my-role" style="font-size:0.8em; color:var(--text-muted);">User</div>
+                    </div>
+                </div>
+                <button class="btn btn-danger" style="width:100%; padding: 10px; font-size: 0.9em;"
+                    onclick="logout()">Log Out</button>
+            </div>
+        </div>
+
+        <!-- CENTER (Chat) -->
+        <div class="panel" id="chat-area">
+            <div class="app-header">
+                <button class="mobile-toggle" onclick="toggleSidebar('left')">☰</button>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="header-title" id="channel-name"># Loading</span>
+                    <button class="btn-icon" style="width:32px; height:32px; font-size:0.8em;"
+                        onclick="togglePanel('pinned')" title="Sabit Mesajlar">📌</button>
+                </div>
+                <button class="mobile-toggle" onclick="toggleSidebar('right')">👥</button>
+            </div>
+
+            <div class="scroll-content" id="message-feed"></div>
+
+            <div id="input-area">
+                <div id="edit-indicator"
+                    style="display:none; background: rgba(255,165,0,0.1); color: orange; padding: 8px 12px; border-radius: 8px; margin-bottom: 8px; font-size: 0.9em; border: 1px solid rgba(255,165,0,0.3);">
+                    Editing Message... <span onclick="cancelEdit()"
+                        style="float:right; cursor:pointer; font-weight:bold;">Cancel</span>
+                </div>
+                <div id="preview-area" style="display:flex; gap:10px; overflow-x:auto; margin-bottom:5px;"></div>
+
+                <div class="input-wrapper" id="input-controls">
+                    <button class="btn-icon" onclick="document.getElementById('file-input').click()">📎</button>
+                    <textarea id="msg-input" placeholder="Send message..."></textarea>
+                    <button class="btn-icon" onclick="openEmojiPanel()">☺</button>
+                    <button class="btn btn-glow" style="padding: 0 20px; height: 48px;"
+                        onclick="sendMessage()">➤</button>
+                </div>
+                <div id="read-only-msg"
+                    style="display:none; text-align:center; color: var(--text-muted); padding: 10px;">Messages cannot be
+                    sent to this channel.</div>
+                <input type="file" id="file-input" multiple style="display:none;" onchange="handleFiles(this)">
+            </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR (Info & Threads) -->
+        <div class="panel sidebar" id="sidebar-right">
+            <div class="app-header"><span class="header-title">Information</span></div>
+            <div class="scroll-content">
+                <h3 id="server-name" style="margin:0 0 5px 0; color:#fff;">ChatBox</h3>
+                <p id="server-description" style="margin:0 0 20px 0; font-size:0.85em; color:var(--text-muted);">Resmi
+                    Topluluk Sunucusu</p>
+                <div
+                    style="font-size:0.75em; font-weight:bold; color: var(--accent-color); letter-spacing:1px; margin-bottom:10px;">
+                    Online Users</div>
+                <div id="users-list"></div>
+            </div>
+
+            <!-- THREAD PANEL -->
+            <div id="thread-panel" class="slide-panel">
+                <div class="app-header" style="background:rgba(0,0,0,0.3)">
+                    <button class="btn-icon" onclick="closeThread()">⬅</button>
+                    <span class="header-title">Sub Feed</span>
+                </div>
+                <div class="scroll-content" id="thread-feed"></div>
+                <div style="padding:15px; border-top:1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; gap:10px;">
+                        <input id="thread-input" class="auth-inp" style="margin:0;" placeholder="Yanıtla..."
+                            onkeydown="if(event.key==='Enter') sendThreadReply()">
+                        <button class="btn btn-glow" style="padding:0 15px;" onclick="sendThreadReply()">➤</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PINNED PANEL -->
+            <div id="pinned-panel" class="slide-panel">
+                <div class="app-header" style="background:rgba(0,0,0,0.3)">
+                    <button class="btn-icon" onclick="togglePanel('pinned', false)">✖</button>
+                    <span class="header-title">Pinned</span>
+                </div>
+                <div class="scroll-content" id="pinned-feed"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODALS -->
+    <!-- Kanal Modal -->
+    <div class="modal-overlay" id="modal-channel">
+        <div class="modal">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Manage Channel</h3>
+                <button class="btn-icon" style="width:30px; height:30px;"
+                    onclick="closeModal('modal-channel')">✖</button>
+            </div>
+            <div>
+                <label style="color:var(--text-muted); font-size:0.9em;">Name</label>
+                <input id="inp-ch-name" class="auth-inp">
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <div>
+                    <label style="color:var(--text-muted); font-size:0.9em;">Read Permissiom</label>
+                    <select id="inp-ch-read" class="auth-inp" style="padding:12px;">
+                        <option value="Guest">Guest</option>
+                        <option value="User">User</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:var(--text-muted); font-size:0.9em;">Write Permissiom</label>
+                    <select id="inp-ch-write" class="auth-inp" style="padding:12px;">
+                        <option value="User">User</option>
+                        <option value="Admin">Admin</option>
+                        <option value="None">None</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                <button id="btn-del-ch" class="btn btn-danger" onclick="openConfirm('channel')">Delete</button>
+                <button class="btn btn-glow" onclick="manageChannel('save')">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emoji Modal -->
+    <div class="modal-overlay" id="modal-emoji">
+        <div class="modal" style="max-width:400px;">
+            <div style="display:flex; justify-content:space-between;">
+                <h3>Select Emoji</h3>
+                <button class="btn-icon" style="width:30px;height:30px;" onclick="closeModal('modal-emoji')">✖</button>
+            </div>
+            <div id="emoji-grid"></div>
+        </div>
+    </div>
+
+    <!-- Rol Modal -->
+    <div class="modal-overlay" id="modal-role">
+        <div class="modal" style="max-width:300px;">
+            <h3>Change Role</h3>
+            <p id="role-target-name" style="text-align:center; font-weight:bold; color:var(--accent-color);"></p>
+            <select id="inp-role-select" class="auth-inp">
+                <option value="Owner">Owner</option>
+                <option value="Admin">Admin</option>
+                <option value="User">User</option>
+                <option value="Guest">Guest</option>
+                <option value="Passive">Passive</option>
+            </select>
+            <button class="btn btn-glow" onclick="saveRole()">Update</button>
+            <button class="btn" style="background:transparent; border:1px solid rgba(255,255,255,0.1); color:#fff;"
+                onclick="closeModal('modal-role')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="ctx-msg-menu">
+        <div class="ctx-item" onclick="handleMsgAction('react')">☺ Add Emoji</div>
+        <div class="ctx-item" onclick="handleMsgAction('reply')">↩ Sub Thread</div>
+        <div style="height:1px; background:rgba(255,255,255,0.1); margin:5px 0;"></div>
+        <div class="ctx-item" onclick="handleMsgAction('edit')">✎ Edit</div>
+        <div class="ctx-item" onclick="handleMsgAction('pin')">📌 Pin</div>
+        <div class="ctx-item" style="color:var(--danger-color);" onclick="handleMsgAction('delete')">🗑 Delete</div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal-overlay" id="modal-confirm">
+        <div class="modal" style="max-width:320px; text-align:center;">
+            <h3 style="color:var(--danger-color)">Are You Sure?</h3>
+            <p style="color:var(--text-muted);">This action cannot be reversed.</p>
+            <div style="display:flex; justify-content:center; gap:10px;">
+                <button class="btn" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#fff;"
+                    onclick="closeModal('modal-confirm')">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDeleteAction()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="ctx-menu">
+        <div class="ctx-item" id="ctx-role-btn" onclick="openRoleModal()">🛡️ Edit Role</div>
+        <div class="ctx-item" onclick="userAction('timeout')">⏳ Time out</div>
+        <div class="ctx-item" style="color:var(--danger-color)" onclick="userAction('ban')">🚫 Ban/UnBan</div>
+    </div>
+
+    <script>
+        const socket = io({ autoConnect: false });
+        let currentUser = null;
+        let currentChannelId = null;
+        let channels = [];
+        let users = [];
+        let messages = [];
+
+        // State Variables
+        let ctxTargetId = null;
+        let editMsgId = null;
+        let activeThreadId = null;
+        let reactionTargetMsgId = null;
+        let deleteTargetId = null; // ID to delete
+        let deleteType = null; // 'message' or 'channel'
+        let pendingFiles = [];
+
+        const roleLevels = { 'Owner': 4, 'Admin': 3, 'User': 2, 'Guest': 1, 'Passive': 0 };
+
+        /* --- TOAST SYSTEM --- */
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅'; if (type === 'error') icon = '⛔';
+            el.innerHTML = `<div style="font-size:1.2em;">${icon}</div><div>${msg}</div>`;
+            container.appendChild(el);
+            setTimeout(() => { el.style.animation = 'fadeOut 0.3s forwards'; setTimeout(() => el.remove(), 300); }, 3500);
+        }
+
+        /* --- AUTH --- */
+        async function login() {
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            try {
+                const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    document.getElementById('auth-screen').style.display = 'none';
+                    document.getElementById('app-container').style.visibility = 'visible';
+                    setupUI();
+                    socket.connect();
+                } else showToast(data.error, 'error');
+            } catch (e) { showToast("Server Error", 'error'); }
+        }
+
+        async function register() {
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            try {
+                const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+                const data = await res.json();
+                if (data.success) showToast("User created, You can login.", 'success'); else showToast(data.error, 'error');
+            } catch (e) { showToast("Hata", 'error'); }
+        }
+
+        function logout() { fetch('/api/logout', { method: 'POST' }).then(() => location.reload()); }
+
+        function setupUI() {
+            document.getElementById('my-username').innerText = currentUser.username;
+            document.getElementById('my-role').innerText = currentUser.role;
+            const av = document.getElementById('my-avatar-el');
+            av.innerText = currentUser.username[0].toUpperCase();
+            av.style.background = currentUser.color;
+
+            if (roleLevels[currentUser.role] >= roleLevels['Admin']) {
+                document.getElementById('btn-add-channel').style.display = 'flex';
+            }
+
+            const grid = document.getElementById('emoji-grid');
+            ['👍', '👎', '❤️', '🔥', '😂', '😮', '😢', '🎉', '🚀', '✅', '❌', '🛡️', '💎', '👀', '💩', '🤡'].forEach(e => {
+                const d = document.createElement('div');
+                d.className = 'emoji-cell'; d.innerText = e;
+                d.onclick = () => {
+                    if (reactionTargetMsgId) socket.emit('toggle_reaction', { messageId: reactionTargetMsgId, emoji: e });
+                    else document.getElementById('msg-input').value += e;
+                    closeModal('modal-emoji');
+                };
+                grid.appendChild(d);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.ctx-item')) {
+                    document.getElementById('ctx-menu').style.display = 'none';
+                    document.getElementById('ctx-msg-menu').style.display = 'none'; // Bunu ekleyin
+                }
+                if (!e.target.closest('.list-item')) document.getElementById('ctx-menu').style.display = 'none';
+            });
+        }
+
+        let ctxMessageId = null; // Seçilen mesajın ID'sini tutar
+
+        function openMsgCtx(e, msgId) {
+            ctxMessageId = msgId;
+            const menu = document.getElementById('ctx-msg-menu');
+
+            // Pozisyonu ayarla (Ekran dışına taşmayı önleyerek)
+            let x = e.clientX;
+            let y = e.clientY;
+
+            // Menü boyutları (tahmini)
+            const menuW = 160;
+            const menuH = 200;
+
+            if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 10;
+            if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 10;
+
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.display = 'block';
+
+            // Kullanıcı menüsü açıksa kapat
+            document.getElementById('ctx-menu').style.display = 'none';
+        }
+        function handleMsgAction(action) {
+            const menu = document.getElementById('ctx-msg-menu');
+            menu.style.display = 'none'; // Menüyü kapat
+
+            if (!ctxMessageId) return;
+            const msg = messages.find(m => m.id === ctxMessageId);
+
+            // Basit yetki kontrolü (Sunucu tarafında da kontrol var zaten)
+            const isOwner = msg && msg.user_id === currentUser.id;
+            const isAdmin = roleLevels[currentUser.role] >= roleLevels['Admin'];
+
+            switch (action) {
+                case 'react':
+                    openEmojiPanel(ctxMessageId);
+                    break;
+                case 'reply':
+                    openThread(ctxMessageId);
+                    break;
+                case 'edit':
+                    if (isOwner || isAdmin) startEdit(ctxMessageId);
+                    else showToast("You can't edit this message", "error");
+                    break;
+                case 'pin':
+                    if (isAdmin) togglePin(ctxMessageId);
+                    else showToast("Only Moderator and owner users pin message", "error");
+                    break;
+                case 'delete':
+                    if (isOwner || isAdmin) openConfirm('message', ctxMessageId);
+                    else showToast("You can't delete this message", "error");
+                    break;
+            }
+        }
+
+        /* --- SOCKET --- */
+        socket.on('init_channels', (data) => {
+            channels = data;
+            if (channels.length > 0 && !currentChannelId) switchChannel(channels[0].id);
+
+            renderChannels();
+        });
+        socket.on('update_channels', () => socket.emit('connection'));
+        socket.on('update_users', (data) => { users = data; renderUsers(); });
+
+        // Message Sync Fix (Thread Separation)
+        socket.on('channel_history', (data) => {
+            if (data.channelId === currentChannelId) {
+                messages = data.messages;
+                renderMessages();
+            }
+        });
+
+        socket.on('new_message', (msg) => {
+            if (msg.channel_id === currentChannelId) {
+                messages.push(msg);
+                // If it's a thread reply, only update thread panel if active
+                if (msg.parent_id) {
+                    if (activeThreadId === msg.parent_id) renderThread();
+                } else {
+                    // Main chat message
+                    const feed = document.getElementById('message-feed');
+                    feed.appendChild(createMsgEl(msg));
+                    feed.scrollTop = feed.scrollHeight;
+                }
+            }
+        });
+
+        socket.on('message_updated', ({ id, content }) => {
+            const m = messages.find(x => x.id === id);
+            if (m) {
+                m.content = content; m.is_edited = 1;
+                // Re-render based on context
+                if (m.parent_id && activeThreadId === m.parent_id) renderThread();
+                else if (!m.parent_id) renderMessages();
+            }
+        });
+
+        socket.on('message_deleted', ({ id }) => {
+            messages = messages.filter(x => x.id !== id);
+            renderMessages();
+            if (activeThreadId) renderThread();
+        });
+
+        socket.on('reaction_update', ({ messageId, emoji, userId, action }) => {
+            const m = messages.find(x => x.id === messageId);
+            if (m) {
+                if (!m.reactions[emoji]) m.reactions[emoji] = [];
+                if (action === 'add') m.reactions[emoji].push(userId);
+                else m.reactions[emoji] = m.reactions[emoji].filter(uid => uid !== userId);
+
+                // Smart Re-render (only necessary parts ideally, simplified here)
+                if (m.parent_id && activeThreadId === m.parent_id) renderThread();
+                else if (!m.parent_id) renderMessages();
+            }
+        });
+        socket.on('error', (msg) => showToast(msg, 'error'));
+
+        /* --- LOGIC --- */
+        function switchChannel(id) {
+            const ch = channels.find(c => c.id === id);
+            if (roleLevels[currentUser.role] < roleLevels[ch.read_permission]) return showToast("You do not have access permission.", 'error');
+
+            currentChannelId = id;
+            document.getElementById('channel-name').innerText = '# ' + ch.name;
+            renderChannels();
+
+            messages = [];
+            document.getElementById('message-feed').innerHTML = '';
+
+            const canWrite = roleLevels[currentUser.role] >= roleLevels[ch.write_permission];
+            document.getElementById('input-controls').style.display = canWrite ? 'flex' : 'none';
+            document.getElementById('read-only-msg').style.display = canWrite ? 'none' : 'block';
+
+            socket.emit('join_channel', id);
+            closeSidebars();
+        }
+
+        function renderChannels() {
+            const list = document.getElementById('channels-list'); list.innerHTML = '';
+            channels.forEach(c => {
+                if (roleLevels[currentUser.role] < roleLevels[c.read_permission]) return;
+                const d = document.createElement('div');
+                d.className = `list-item ${c.id === currentChannelId ? 'active' : ''}`;
+                const settings = (roleLevels[currentUser.role] >= roleLevels['Admin'])
+                    ? `<button class="btn-icon" style="width:24px;height:24px;font-size:0.8em;" onclick="event.stopPropagation(); openChannelModal(${c.id}, 'edit')">⚙</button>` : '';
+                d.innerHTML = `<span># ${c.name}</span> ${settings}`;
+                d.onclick = () => switchChannel(c.id);
+                list.appendChild(d);
+            });
+        }
+
+        function renderUsers() {
+            const list = document.getElementById('users-list'); list.innerHTML = '';
+            users.forEach(u => {
+                const d = document.createElement('div');
+                d.className = `list-item ${u.is_banned ? 'banned' : ''}`;
+                const statusDot = u.status === 'online' ? '#00ff88' : '#666';
+                let info = ''; if (u.muted_until > Date.now()) info = '🔇'; if (u.is_banned) info = '(Yasak)';
+
+                d.innerHTML = `<div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:8px;height:8px;border-radius:50%;background:${statusDot};box-shadow:0 0 5px ${statusDot}"></div>
+                <span>${u.username}</span>
+                <span style="font-size:0.7em; opacity:0.7; border:1px solid rgba(255,255,255,0.2); padding:1px 5px; border-radius:4px;">${u.role}</span>
+                <span style="color:var(--danger-color)">${info}</span>
+            </div>`;
+
+                d.oncontextmenu = (e) => {
+                    if (roleLevels[currentUser.role] >= roleLevels['Admin']) {
+                        e.preventDefault(); openUserCtx(e, u);
+                    }
+                };
+                list.appendChild(d);
+            });
+        }
+
+        function renderMessages() {
+            const feed = document.getElementById('message-feed'); feed.innerHTML = '';
+            // Ana akışta alt yorumları (thread replies) gösterme
+            const filtered = messages.filter(m => m.channel_id === currentChannelId && !m.parent_id);
+            filtered.forEach(m => feed.appendChild(createMsgEl(m)));
+            feed.scrollTop = feed.scrollHeight;
+
+            if (activeThreadId) renderThread();
+            if (document.getElementById('pinned-panel').classList.contains('active')) renderPinned();
+        }
+
+        function createMsgEl(m) {
+            const div = document.createElement('div');
+            div.className = `message-row ${m.is_pinned ? 'pinned' : ''}`;
+
+            let filesHtml = '';
+            if (m.files && m.files.length) {
+                m.files.forEach(f => {
+                    if (f.type.startsWith('image')) filesHtml += `<br><img src="${f.url}" style="max-width:200px; border-radius:8px; margin-top:5px; border:1px solid rgba(255,255,255,0.1);">`;
+                    else filesHtml += `<br><a href="${f.url}" target="_blank" style="display:inline-block; background:rgba(255,255,255,0.1); padding:5px 10px; border-radius:6px; margin-top:5px; color:var(--accent-color); text-decoration:none;">📄 ${f.name}</a>`;
+                });
+            }
+
+            let reactionsHtml = '';
+            if (m.reactions) {
+                for (let [emoji, uids] of Object.entries(m.reactions)) {
+                    if (uids.length > 0) {
+                        const active = uids.includes(currentUser.id) ? 'active' : '';
+                        reactionsHtml += `<span class="reaction-pill ${active}" onclick="socket.emit('toggle_reaction', {messageId:${m.id}, emoji:'${emoji}'})">${emoji} ${uids.length}</span>`;
+                    }
+                }
+            }
+
+            div.oncontextmenu = (e) => {
+                e.preventDefault();
+                openMsgCtx(e, m.id);
+            };
+
+            // Mobilde uzun basma desteği için
+            let pressTimer;
+            div.ontouchstart = (e) => {
+                pressTimer = setTimeout(() => {
+                    // Dokunma pozisyonunu al
+                    const touch = e.touches[0];
+                    // Sahte bir mouse event objesi oluştur
+                    openMsgCtx({ clientX: touch.clientX, clientY: touch.clientY }, m.id);
+                }, 600);
+            };
+            div.ontouchend = () => clearTimeout(pressTimer);
+
+            const isOwner = m.user_id === currentUser.id;
+            const isAdmin = roleLevels[currentUser.role] >= roleLevels['Admin'];
+
+            let actionsHtml = `
+            <div class="msg-actions">
+                <span class="action-btn" title="Tepki" onclick="openEmojiPanel(${m.id})">☺</span>
+                <span class="action-btn" title="Yanıtla" onclick="openThread(${m.id})">↩</span>
+                ${(isOwner || isAdmin) ? `<span class="action-btn" title="Düzenle" onclick="startEdit(${m.id})">✎</span>` : ''}
+                ${(isOwner || isAdmin) ? `<span class="action-btn" title="Sil" onclick="openConfirm('message', ${m.id})" style="color:var(--danger-color)">🗑</span>` : ''}
+                ${isAdmin ? `<span class="action-btn" title="Sabitle" onclick="togglePin(${m.id})">📌</span>` : ''}
+            </div>
+        `;
+
+            div.innerHTML = `
+            <div class="avatar-gen" style="background:${m.avatar_color || '#333'}">${m.username[0].toUpperCase()}</div>
+            <div class="msg-body">
+                <div class="msg-meta">
+                    <span class="username" style="color:${m.avatar_color}">${m.username}</span>
+                    <span class="timestamp">${m.timestamp}</span>
+                </div>
+                <div class="msg-text">${m.content} ${m.is_edited ? '<span style="font-size:0.7em;opacity:0.5">(düzenlendi)</span>' : ''}</div>
+                ${filesHtml}
+                <div>${reactionsHtml}</div>
+            </div>
+            ${actionsHtml}
+        `;
+            return div;
+        }
+
+        /* --- ACTIONS --- */
+        async function sendMessage() {
+            const txt = document.getElementById('msg-input').value;
+            if (editMsgId) {
+                socket.emit('edit_message', { id: editMsgId, content: txt });
+                cancelEdit(); return;
+            }
+
+            let uploaded = [];
+            if (pendingFiles.length > 0) {
+                const fd = new FormData();
+                pendingFiles.forEach(f => fd.append('files', f));
+                try {
+                    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                    uploaded = (await res.json()).files;
+                } catch (e) { showToast("File error.", 'error'); }
+                pendingFiles = []; document.getElementById('preview-area').innerHTML = '';
+            }
+
+            if (!txt && uploaded.length === 0) return;
+            socket.emit('send_message', { channelId: currentChannelId, content: txt, files: uploaded, parentId: null });
+            document.getElementById('msg-input').value = '';
+        }
+        async function getserverdata() {
+            const res = await fetch('/api/get-server');
+            if (!res.ok) {
+                throw new Error(`Response status: ${res.status}`);
+            }
+            const result = await res.json();
+
+            document.title = result.Name;
+            document.getElementById("server-name").innerText = result.Name;
+            document.getElementById("server-description").innerText = result.Description;
+        }
+        getserverdata();
+
+        function handleFiles(inp) {
+            Array.from(inp.files).forEach(f => {
+                pendingFiles.push(f);
+                const img = document.createElement('img'); img.className = 'preview-thumb'; img.src = URL.createObjectURL(f);
+                document.getElementById('preview-area').appendChild(img);
+            });
+            inp.value = '';
+        }
+
+        /* --- THREADS --- */
+        function openThread(msgId) {
+            activeThreadId = msgId;
+            document.getElementById('thread-panel').classList.add('active');
+            toggleSidebar('right');
+            renderThread();
+        }
+        function closeThread() { activeThreadId = null; document.getElementById('thread-panel').classList.remove('active'); closeModal(); }
+
+        function renderThread() {
+            const feed = document.getElementById('thread-feed'); feed.innerHTML = '';
+            const parent = messages.find(x => x.id === activeThreadId);
+            if (parent) {
+                const w = document.createElement('div'); w.style.padding = "10px"; w.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+                w.appendChild(createMsgEl(parent)); feed.appendChild(w);
+            }
+            messages.filter(x => x.parent_id === activeThreadId).forEach(m => feed.appendChild(createMsgEl(m)));
+            renderChannels();
+        }
+
+        function sendThreadReply() {
+            const txt = document.getElementById('thread-input').value;
+            if (!txt) return;
+            socket.emit('send_message', { channelId: currentChannelId, content: txt, files: [], parentId: activeThreadId });
+            document.getElementById('thread-input').value = '';
+        }
+
+        /* --- MODAL & DELETE LOGIC --- */
+        function openConfirm(type, id = null) {
+            deleteType = type;
+            deleteTargetId = id;
+            document.getElementById('modal-confirm').style.display = 'flex';
+        }
+
+        function confirmDeleteAction() {
+            if (deleteType === 'message') {
+                socket.emit('delete_message', { id: deleteTargetId });
+            } else if (deleteType === 'channel') {
+                // Kanal silme için ID manageChannel'dan geliyor (ctxTargetId)
+                socket.emit('manage_channel', { action: 'delete', id: ctxTargetId });
+                closeModal('modal-channel');
+            }
+            closeModal('modal-confirm');
+            showToast("Deleted", 'success');
+        }
+
+        /* --- CHANNEL ADMIN --- */
+        let targetChannelId = null;
+        function openChannelModal(id, mode) {
+            ctxTargetId = id; // Silme işlemi için global ID'yi güncelle
+            targetChannelId = id;
+            const btnDel = document.getElementById('btn-del-ch');
+            if (mode === 'edit') {
+                const c = channels.find(x => x.id === id);
+                document.getElementById('inp-ch-name').value = c.name;
+                btnDel.style.display = 'block';
+            } else {
+                document.getElementById('inp-ch-name').value = '';
+                btnDel.style.display = 'none';
+            }
+            document.getElementById('modal-channel').style.display = 'flex';
+        }
+
+        function manageChannel(action) {
+            if (action === 'save') {
+                const name = document.getElementById('inp-ch-name').value;
+                const read = document.getElementById('inp-ch-read').value;
+                const write = document.getElementById('inp-ch-write').value;
+                const srvAction = targetChannelId ? 'edit' : 'create';
+                socket.emit('manage_channel', { action: srvAction, id: targetChannelId, name, read, write, rules: {} });
+                closeModal('modal-channel');
+                showToast("Saved", 'success');
+            }
+        }
+
+        /* --- UTILS --- */
+        function startEdit(id) {
+            editMsgId = id;
+            const msg = messages.find(x => x.id === id);
+            // Eğer thread mesajı ise o paneli açmayız, sadece inputa metni koyarız
+            document.getElementById('msg-input').value = msg.content;
+            document.getElementById('edit-indicator').style.display = 'block';
+        }
+        function cancelEdit() { editMsgId = null; document.getElementById('msg-input').value = ''; document.getElementById('edit-indicator').style.display = 'none'; }
+        function togglePin(id) { socket.emit('toggle_pin', { id }); renderPinned();}
+        function togglePanel(name, show) {
+            const p = document.getElementById(name + '-panel');
+            if (show === false || p.classList.contains('active')) p.classList.remove('active');
+            else { p.classList.add('active'); if (name === 'pinned') renderPinned(); toggleSidebar('right'); }
+        }
+        function renderPinned() {
+            const feed = document.getElementById('pinned-feed'); feed.innerHTML = '';
+            messages.filter(x => x.channel_id === currentChannelId && x.is_pinned).forEach(m => feed.appendChild(createMsgEl(m)));
+        }
+
+        function openUserCtx(e, u) {
+            ctxTargetId = u.id;
+            const menu = document.getElementById('ctx-menu');
+            let x = e.clientX, y = e.clientY;
+            if (x + 200 > window.innerWidth) x = window.innerWidth - 210;
+            menu.style.left = x + 'px'; menu.style.top = y + 'px';
+            menu.style.display = 'block';
+        }
+        function userAction(act) {
+            const u = users.find(x => x.id === ctxTargetId);
+            let val = true;
+            if (act === 'ban') val = !u.is_banned;
+            if (act === 'timeout') val = !(u.muted_until > Date.now());
+            socket.emit('user_action', { userId: ctxTargetId, action: act, value: val });
+            document.getElementById('ctx-menu').style.display = 'none';
+        }
+        function openRoleModal() {
+            document.getElementById('ctx-menu').style.display = 'none';
+            const u = users.find(x => x.id === ctxTargetId);
+            document.getElementById('role-target-name').innerText = u.username;
+            document.getElementById('modal-role').style.display = 'flex';
+        }
+        function saveRole() {
+            const r = document.getElementById('inp-role-select').value;
+            socket.emit('user_action', { userId: ctxTargetId, action: 'role', value: r });
+            closeModal('modal-role');
+        }
+
+        function openEmojiPanel(msgId = null) { reactionTargetMsgId = msgId; document.getElementById('modal-emoji').style.display = 'flex'; }
+        function toggleSidebar(side) { document.getElementById('mobile-overlay').style.display = 'block'; document.getElementById('sidebar-' + side).classList.add('active'); }
+        function closeSidebars() { document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('active')); document.getElementById('mobile-overlay').style.display = 'none'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    </script>
+</body>
+
+</html>
